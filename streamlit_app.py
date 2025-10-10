@@ -1,6 +1,9 @@
 import streamlit as st
 import time
 
+# Import model.py file to use RAG function
+#from model import retrieve_book_info
+
 st.title("Book Recommendation RAG Model Tester Site")
 st.write(
     "This model is currently pulling from these pdfs:\n" \

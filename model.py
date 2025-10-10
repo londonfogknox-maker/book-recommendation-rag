@@ -90,6 +90,12 @@ chunked_text_embeddings = embedding_model.encode(text_chunks)
 print(f"Generated embeddings for {len(chunked_text_embeddings)} chunks.")
 print(f"Embedding dimension: {chunked_text_embeddings.shape[1]}")
 
+# Necessary to use pysqlite3 instead of sqlite3
+# to avoid potential compatibility issues with ChromaDB
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 import chromadb
 
 # 1. Initialize a Chroma client
@@ -118,3 +124,43 @@ collection.add(
 # 4. Print the count of items stored in the Chroma collection
 print(f"Stored {collection.count()} embeddings in Chroma collection 'book_chunks_with_titles'.")
 
+def retrieve_book_info(user_query, collection, embedding_model, n_results=5):
+  """Retrieves the most relevant text chunks, titles, and IDs from Chroma based on a query."""
+  # Generate embedding for the query
+  query_embedding = embedding_model.encode(user_query).tolist()
+
+  # Query Chroma for similar chunks
+  results = collection.query(
+      query_embeddings=[query_embedding],
+      n_results=n_results,
+      include=['documents', 'metadatas'] # Include documents and metadata in the results
+  )
+
+  # Extract the relevant documents (text chunks), titles, and IDs
+  relevant_documents = results['documents'][0]
+  relevant_titles = [metadata['title'] for metadata in results['metadatas'][0]]
+  relevant_ids = results['ids'][0]
+
+  return relevant_documents, relevant_titles, relevant_ids
+
+# Example of using the function
+user_query = "Can you recommend me books that have sad moods?"
+relevant_documents, relevant_titles, relevant_ids = retrieve_book_info(user_query, collection, embedding_model)
+
+print(f"Based on your interest in '{user_query}', here are some relevant books:")
+# Display information for the first 5 relevant results
+for i in range(min(len(relevant_documents), 5)):
+  # Use the retrieved title to find the full book data from the original extracted data
+  book_info = next((item for item in extracted_book_data if item['title'] == relevant_titles[i]), None)
+
+  if book_info:
+      print(f"\nRecommendation {i+1}:")
+      print(f"  Title: {book_info.get('title', 'N/A')}")
+      print(f"  Author: {book_info.get('author', 'N/A')}")
+      print(f"  Category: {book_info.get('category', 'N/A')}")
+      print(f"  Mood Tags: {book_info.get('mood_tags', 'N/A')}")
+  else:
+      # Fallback if full book info is not found (shouldn't happen if titles match correctly)
+      print(f"\nRecommendation {i+1}:")
+      print(f"  Title: {relevant_titles[i]}")
+      print("  Full book details not found.")
