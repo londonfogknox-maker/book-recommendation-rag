@@ -44,8 +44,8 @@ def extract_text_and_metadata_from_pdf(pdf_path):
 
   return book_data
 
-# Replace with the actual path to your PDF file
-pdf_path = "Archival Favorites Cleaned (1).pdf"  # Updated to local workspace path
+# Updated to local workspace path
+pdf_path = "Archival Favorites Cleaned (1).pdf"  
 
 if os.path.exists(pdf_path):
   extracted_book_data = extract_text_and_metadata_from_pdf(pdf_path)
@@ -73,8 +73,6 @@ for book in extracted_book_data:
             'text': chunk # This is the chunked description
         })
 
-#print(f"Split into {len(chunked_book_data)} smaller chunks with metadata.")
-
 from sentence_transformers import SentenceTransformer
 
 # Initialize the embedding model
@@ -86,10 +84,6 @@ text_chunks = [item['text'] for item in chunked_book_data]
 
 # Generate embeddings for each text chunk
 chunked_text_embeddings = embedding_model.encode(text_chunks)
-
-# Print the number of generated embeddings and the dimension
-#print(f"Generated embeddings for {len(chunked_text_embeddings)} chunks.")
-#print(f"Embedding dimension: {chunked_text_embeddings.shape[1]}")
 
 # Necessary to use pysqlite3 instead of sqlite3
 # to avoid potential compatibility issues with ChromaDB
@@ -122,10 +116,6 @@ collection.add(
     ids=ids_list
 )
 
-# Print the count of items stored in the Chroma collection
-#print(f"Stored {collection.count()} embeddings in Chroma collection 'book_chunks_with_titles'.")
-#user_query = "Can you recommend me books that have sad moods?"
-
 def retrieve_book_info(user_query, collection, embedding_model, n_results=5):
   """Retrieves the most relevant text chunks, titles, and IDs from Chroma based on a query."""
   # Generate embedding for the query
@@ -146,45 +136,53 @@ def retrieve_book_info(user_query, collection, embedding_model, n_results=5):
   return relevant_documents, relevant_titles, relevant_ids
 
 def print_book_results(relevant_documents, relevant_titles, relevant_ids, extracted_book_data, n_display=5):
-  """
-  Prints the book information for the most relevant results.
+    """
+    Returns a string containing book information for the most relevant results.
 
-  Args:
-    relevant_documents: List of relevant text chunks.
-    relevant_titles: List of titles corresponding to the chunks.
-    relevant_ids: List of IDs corresponding to the chunks.
-    extracted_book_data: The original list of dictionaries with full book data.
-    n_display: The maximum number of unique books to display.
-  """
-  st.chat_message(f"Based on your interest, here are some relevant books:")
-  displayed_titles = set()
-  count = 0
-  for i in range(len(relevant_documents)):
-    # Use the retrieved title to find the full book data from the original extracted data
-    book_info = next((item for item in extracted_book_data if item['title'] == relevant_titles[i]), None)
+    Args:
+      relevant_documents: List of relevant text chunks.
+      relevant_titles: List of titles corresponding to the chunks.
+      relevant_ids: List of IDs corresponding to the chunks.
+      extracted_book_data: The original list of dictionaries with full book data.
+      n_display: The maximum number of unique books to display.
 
-    if book_info and book_info.get('title') not in displayed_titles:
-        st.chat_message(f"\nRecommendation {count+1}:")
-        st.write(f"  Title: {book_info.get('title', 'N/A')}")
-        st.write(f"  Author: {book_info.get('author', 'N/A')}")
-        st.write(f"  Category: {book_info.get('category', 'N/A')}")
-        st.write(f"  Mood Tags: {book_info.get('mood_tags', 'N/A')}")
-        displayed_titles.add(book_info.get('title'))
-        count += 1
-        if count >= n_display: # Stop after displaying n_display unique books
-            break
-    elif not book_info:
-        # Fallback if full book info is not found (shouldn't happen if titles match correctly)
-        st.chat_message(f"\nRecommendation {count+1}:")
-        st.write(f"  Title: {relevant_titles[i]}")
-        st.write("  Full book details not found.")
-        count += 1
-        if count >= n_display: # Stop after displaying n_display unique books
-            break
+    Returns:
+      A string containing formatted book recommendations.
+    """
+    recommendations_string = " \n\n"
+    displayed_titles = set()
+    count = 0
+    for i in range(len(relevant_documents)):
+      # Use the retrieved title to find the full book data from the original extracted data
+      book_info = next((item for item in extracted_book_data if item['title'] == relevant_titles[i]), None)
 
-# Example of using the function
-#user_query = "Books similar to the Iliad"
-#relevant_documents, relevant_titles, relevant_ids = retrieve_book_info(user_query, collection, embedding_model)
+      if book_info and book_info.get('title') not in displayed_titles:
+          recommendations_string += f"\nBook {count+1}:\n"
+          recommendations_string += f"  **Title**: {book_info.get('title', 'N/A')}  \n"
+          recommendations_string += f"  Author: {book_info.get('author', 'N/A')}  \n"
+          recommendations_string += f"  Category: {book_info.get('category', 'N/A')}  \n"
+          recommendations_string += f"  Mood Tags: *{book_info.get('mood_tags', 'N/A')}*  \n"
+          displayed_titles.add(book_info.get('title'))
+          count += 1
+          if count >= n_display: # Stop after displaying n_display unique books
+              break
+      elif not book_info:
+          # Fallback if full book info is not found (shouldn't happen if titles match correctly)
+          recommendations_string += f"\nRecommendation {count+1}:\n"
+          recommendations_string += f"  Title: {relevant_titles[i]}\n"
+          recommendations_string += "  Full book details not found.\n"
+          count += 1
+          if count >= n_display: # Stop after displaying n_display unique books
+              break
 
-# Call the new function to print the results
-#print_book_results(relevant_documents, relevant_titles, relevant_ids, extracted_book_data)
+    return recommendations_string
+
+  # Example of using the function
+  #user_query = "Books similar to the Iliad"
+  #relevant_documents, relevant_titles, relevant_ids = retrieve_book_info(user_query, collection, embedding_model)
+
+  # Call the new function to get the results string
+  #recommendations_output = print_book_results(relevant_documents, relevant_titles, relevant_ids, extracted_book_data)
+
+  # Print the returned string
+  #print(recommendations_output)

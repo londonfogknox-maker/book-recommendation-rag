@@ -22,6 +22,17 @@ def response_generator():
         yield word + " "
         time.sleep(0.05)
 
+def book_response():
+    # Display in chat the book recommendations
+    # Retrieve book info based on user input
+    relevant_documents, relevant_titles, relevant_ids = retrieve_book_info(user_input, collection, embedding_model, 5)
+    response = print_book_results(relevant_documents, relevant_titles, relevant_ids, extracted_book_data, 5)
+
+    split_response = response.split("\n")
+    for line in split_response:
+        yield line + "  \n"
+        time.sleep(0.05)
+
 user_input = st.chat_input("Heartwarming, sweet, sad, senual... ")
 if user_input:
     st.session_state.chat_history.append(("user", user_input))
@@ -36,6 +47,5 @@ if user_input:
     with st.chat_message("bot"):
         filler_response = st.write_stream(response_generator())
         st.session_state.chat_history.append(("bot", filler_response))
-
-#for sender, message in st.session_state.chat_history:
- #   st.chat_message(sender).write(message)
+        rec_response = st.write_stream(book_response())
+        st.session_state.chat_history.append(("bot", rec_response))
