@@ -1,5 +1,6 @@
 from pypdf import PdfReader
 import os
+import streamlit as st
 
 def extract_text_and_metadata_from_pdf(pdf_path):
   """Extracts text and specific metadata (title, author, category, mood) from a PDF file."""
@@ -36,7 +37,7 @@ def extract_text_and_metadata_from_pdf(pdf_path):
               })
 
 
-    print(f"Extracted data for {len(book_data)} books.")
+    #print(f"Extracted data for {len(book_data)} books.")
   except Exception as e:
     print(f"Error reading {pdf_path}: {e}")
     return [] # Return empty list in case of error
@@ -48,7 +49,7 @@ pdf_path = "Archival Favorites Cleaned (1).pdf"  # Updated to local workspace pa
 
 if os.path.exists(pdf_path):
   extracted_book_data = extract_text_and_metadata_from_pdf(pdf_path)
-  print(f"Extracted text and metadata from {pdf_path}")
+  #print(f"Extracted text and metadata from {pdf_path}")
 else:
   print(f"File not found: {pdf_path}")
   print("Please upload your PDF file to this location.")
@@ -72,13 +73,13 @@ for book in extracted_book_data:
             'text': chunk # This is the chunked description
         })
 
-print(f"Split into {len(chunked_book_data)} smaller chunks with metadata.")
+#print(f"Split into {len(chunked_book_data)} smaller chunks with metadata.")
 
 from sentence_transformers import SentenceTransformer
 
 # Initialize the embedding model
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-print("Embedding model loaded successfully.")
+#print("Embedding model loaded successfully.")
 
 # Extract the 'text' value from each dictionary
 text_chunks = [item['text'] for item in chunked_book_data]
@@ -87,8 +88,8 @@ text_chunks = [item['text'] for item in chunked_book_data]
 chunked_text_embeddings = embedding_model.encode(text_chunks)
 
 # Print the number of generated embeddings and the dimension
-print(f"Generated embeddings for {len(chunked_text_embeddings)} chunks.")
-print(f"Embedding dimension: {chunked_text_embeddings.shape[1]}")
+#print(f"Generated embeddings for {len(chunked_text_embeddings)} chunks.")
+#print(f"Embedding dimension: {chunked_text_embeddings.shape[1]}")
 
 # Necessary to use pysqlite3 instead of sqlite3
 # to avoid potential compatibility issues with ChromaDB
@@ -98,11 +99,11 @@ sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import chromadb
 
-# 1. Initialize a Chroma client
+# Initialize a Chroma client
 # Using an in-memory client for this example
 client = chromadb.Client()
 
-# 2. Get or create a collection
+# Get or create a collection
 collection = client.get_or_create_collection(name="book_chunks_with_titles")
 
 # Prepare data for Chroma
@@ -113,7 +114,7 @@ metadata_list = [{'title': item['title']} for item in chunked_book_data]
 ids_list = [f"chunk_{i}" for i in range(len(chunked_book_data))]
 
 
-# 3. Add the text chunks, their generated embeddings, and their corresponding book titles to the collection
+# Add the text chunks, their generated embeddings, and their corresponding book titles to the collection
 collection.add(
     embeddings=embeddings_list,
     documents=documents_list,
@@ -121,8 +122,9 @@ collection.add(
     ids=ids_list
 )
 
-# 4. Print the count of items stored in the Chroma collection
-print(f"Stored {collection.count()} embeddings in Chroma collection 'book_chunks_with_titles'.")
+# Print the count of items stored in the Chroma collection
+#print(f"Stored {collection.count()} embeddings in Chroma collection 'book_chunks_with_titles'.")
+#user_query = "Can you recommend me books that have sad moods?"
 
 def retrieve_book_info(user_query, collection, embedding_model, n_results=5):
   """Retrieves the most relevant text chunks, titles, and IDs from Chroma based on a query."""
@@ -143,24 +145,46 @@ def retrieve_book_info(user_query, collection, embedding_model, n_results=5):
 
   return relevant_documents, relevant_titles, relevant_ids
 
+def print_book_results(relevant_documents, relevant_titles, relevant_ids, extracted_book_data, n_display=5):
+  """
+  Prints the book information for the most relevant results.
+
+  Args:
+    relevant_documents: List of relevant text chunks.
+    relevant_titles: List of titles corresponding to the chunks.
+    relevant_ids: List of IDs corresponding to the chunks.
+    extracted_book_data: The original list of dictionaries with full book data.
+    n_display: The maximum number of unique books to display.
+  """
+  st.chat_message(f"Based on your interest, here are some relevant books:")
+  displayed_titles = set()
+  count = 0
+  for i in range(len(relevant_documents)):
+    # Use the retrieved title to find the full book data from the original extracted data
+    book_info = next((item for item in extracted_book_data if item['title'] == relevant_titles[i]), None)
+
+    if book_info and book_info.get('title') not in displayed_titles:
+        st.chat_message(f"\nRecommendation {count+1}:")
+        st.write(f"  Title: {book_info.get('title', 'N/A')}")
+        st.write(f"  Author: {book_info.get('author', 'N/A')}")
+        st.write(f"  Category: {book_info.get('category', 'N/A')}")
+        st.write(f"  Mood Tags: {book_info.get('mood_tags', 'N/A')}")
+        displayed_titles.add(book_info.get('title'))
+        count += 1
+        if count >= n_display: # Stop after displaying n_display unique books
+            break
+    elif not book_info:
+        # Fallback if full book info is not found (shouldn't happen if titles match correctly)
+        st.chat_message(f"\nRecommendation {count+1}:")
+        st.write(f"  Title: {relevant_titles[i]}")
+        st.write("  Full book details not found.")
+        count += 1
+        if count >= n_display: # Stop after displaying n_display unique books
+            break
+
 # Example of using the function
-user_query = "Can you recommend me books that have sad moods?"
-relevant_documents, relevant_titles, relevant_ids = retrieve_book_info(user_query, collection, embedding_model)
+#user_query = "Books similar to the Iliad"
+#relevant_documents, relevant_titles, relevant_ids = retrieve_book_info(user_query, collection, embedding_model)
 
-print(f"Based on your interest in '{user_query}', here are some relevant books:")
-# Display information for the first 5 relevant results
-for i in range(min(len(relevant_documents), 5)):
-  # Use the retrieved title to find the full book data from the original extracted data
-  book_info = next((item for item in extracted_book_data if item['title'] == relevant_titles[i]), None)
-
-  if book_info:
-      print(f"\nRecommendation {i+1}:")
-      print(f"  Title: {book_info.get('title', 'N/A')}")
-      print(f"  Author: {book_info.get('author', 'N/A')}")
-      print(f"  Category: {book_info.get('category', 'N/A')}")
-      print(f"  Mood Tags: {book_info.get('mood_tags', 'N/A')}")
-  else:
-      # Fallback if full book info is not found (shouldn't happen if titles match correctly)
-      print(f"\nRecommendation {i+1}:")
-      print(f"  Title: {relevant_titles[i]}")
-      print("  Full book details not found.")
+# Call the new function to print the results
+#print_book_results(relevant_documents, relevant_titles, relevant_ids, extracted_book_data)
