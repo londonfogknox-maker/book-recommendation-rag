@@ -4,10 +4,6 @@ This is a prototype idea for a book recommendation model using RAG method.
 
 ## Progress
 
-The model.py file is incomplete; it needs to be updated with RAG function. 
-
-To run it on codespace, sqlite3 needs to be installed manually to use Chromadb library. 
-
 Streamlit_app.py needs to be updated with completed chatbot to run and output results for user inquiries. 
 
 ### How to run it on your own machine
